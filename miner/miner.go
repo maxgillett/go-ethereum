@@ -46,7 +46,7 @@ type Backend interface {
 type Miner struct {
 	mux *event.TypeMux
 
-	worker *worker
+	Worker *worker
 
 	coinbase common.Address
 	mining   int32
@@ -62,7 +62,7 @@ func New(eth Backend, config *params.ChainConfig, mux *event.TypeMux, engine con
 		eth:      eth,
 		mux:      mux,
 		engine:   engine,
-		worker:   newWorker(config, engine, common.Address{}, eth, mux),
+		Worker:   newWorker(config, engine, common.Address{}, eth, mux),
 		canStart: 1,
 	}
 	miner.Register(NewCpuAgent(eth.BlockChain(), engine))
@@ -105,7 +105,7 @@ out:
 
 func (self *Miner) Start(coinbase common.Address) {
 	atomic.StoreInt32(&self.shouldStart, 1)
-	self.worker.setEtherbase(coinbase)
+	self.Worker.setEtherbase(coinbase)
 	self.coinbase = coinbase
 
 	if atomic.LoadInt32(&self.canStart) == 0 {
@@ -115,12 +115,12 @@ func (self *Miner) Start(coinbase common.Address) {
 	atomic.StoreInt32(&self.mining, 1)
 
 	log.Info("Starting mining operation")
-	self.worker.start()
-	self.worker.commitNewWork()
+	self.Worker.start()
+	self.Worker.commitNewWork()
 }
 
 func (self *Miner) Stop() {
-	self.worker.stop()
+	self.Worker.stop()
 	atomic.StoreInt32(&self.mining, 0)
 	atomic.StoreInt32(&self.shouldStart, 0)
 }
@@ -129,11 +129,11 @@ func (self *Miner) Register(agent Agent) {
 	if self.Mining() {
 		agent.Start()
 	}
-	self.worker.register(agent)
+	self.Worker.register(agent)
 }
 
 func (self *Miner) Unregister(agent Agent) {
-	self.worker.unregister(agent)
+	self.Worker.unregister(agent)
 }
 
 func (self *Miner) Mining() bool {
@@ -147,7 +147,7 @@ func (self *Miner) HashRate() (tot int64) {
 	// do we care this might race? is it worth we're rewriting some
 	// aspects of the worker/locking up agents so we can get an accurate
 	// hashrate?
-	for agent := range self.worker.agents {
+	for agent := range self.Worker.agents {
 		if _, ok := agent.(*CpuAgent); !ok {
 			tot += agent.GetHashRate()
 		}
@@ -159,13 +159,13 @@ func (self *Miner) SetExtra(extra []byte) error {
 	if uint64(len(extra)) > params.MaximumExtraDataSize {
 		return fmt.Errorf("Extra exceeds max length. %d > %v", len(extra), params.MaximumExtraDataSize)
 	}
-	self.worker.setExtra(extra)
+	self.Worker.setExtra(extra)
 	return nil
 }
 
 // Pending returns the currently pending block and associated state.
 func (self *Miner) Pending() (*types.Block, *state.StateDB) {
-	return self.worker.pending()
+	return self.Worker.pending()
 }
 
 // PendingBlock returns the currently pending block.
@@ -174,10 +174,10 @@ func (self *Miner) Pending() (*types.Block, *state.StateDB) {
 // simultaneously, please use Pending(), as the pending state can
 // change between multiple method calls
 func (self *Miner) PendingBlock() *types.Block {
-	return self.worker.pendingBlock()
+	return self.Worker.pendingBlock()
 }
 
 func (self *Miner) SetEtherbase(addr common.Address) {
 	self.coinbase = addr
-	self.worker.setEtherbase(addr)
+	self.Worker.setEtherbase(addr)
 }

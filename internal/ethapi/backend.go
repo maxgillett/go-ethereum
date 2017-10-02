@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -68,6 +69,10 @@ type Backend interface {
 
 	ChainConfig() *params.ChainConfig
 	CurrentBlock() *types.Block
+
+	// Miner
+	Miner() *miner.Miner
+	BlockChain() *core.BlockChain
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

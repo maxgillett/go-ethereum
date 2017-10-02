@@ -650,6 +650,134 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNr r
 	return (hexutil.Bytes)(result), err
 }
 
+func (s *PublicBlockChainAPI) doBatchCall(ctx context.Context, batchArgs []CallArgs, blockNr rpc.BlockNumber, vmCfg vm.Config) ([]byte, *big.Int, error) {
+	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
+
+	state, header, err := s.b.StateAndHeaderByNumber(ctx, blockNr)
+	if state == nil || err != nil {
+		return nil, common.Big0, err
+	}
+
+	// Iterate through args, and construct messages in order
+	msgs := []types.Message{}
+	for _, args := range batchArgs {
+
+		// Set sender address or use a default if none specified
+		addr := args.From
+		if addr == (common.Address{}) {
+			if wallets := s.b.AccountManager().Wallets(); len(wallets) > 0 {
+				if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+					addr = accounts[0].Address
+				}
+			}
+		}
+		// Set default gas & gas price if none were set
+		gas, gasPrice := args.Gas.ToInt(), args.GasPrice.ToInt()
+		if gas.Sign() == 0 {
+			gas = big.NewInt(50000000)
+		}
+		if gasPrice.Sign() == 0 {
+			gasPrice = new(big.Int).SetUint64(defaultGasPrice)
+		}
+
+		// Create new call message
+		msg := types.NewMessage(addr, args.To, 0, args.Value.ToInt(), gas, gasPrice, args.Data, false)
+		msgs = append(msgs, msg)
+	}
+
+	// Setup context so it may be cancelled the call has completed
+	// or, in case of unmetered gas, setup a context with a timeout.
+	var cancel context.CancelFunc
+	if vmCfg.DisableGasMetering {
+		ctx, cancel = context.WithTimeout(ctx, time.Second*5)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	// Make sure the context is cancelled when the call has completed
+	// this makes sure resources are cleaned up.
+	defer func() { cancel() }()
+
+	// Get a new instance of the EVM.
+	evm, vmError, err := s.b.GetEVM(ctx, msgs[0], state, header, vmCfg)
+	if err != nil {
+		return nil, common.Big0, err
+	}
+	// Wait for the context to be done and cancel the evm. Even if the
+	// EVM has finished, cancelling may be done (repeatedly)
+	go func() {
+		<-ctx.Done()
+		evm.Cancel()
+	}()
+
+	// Setup the gas pool (also for unmetered requests)
+	// and apply the message.
+	gp := new(core.GasPool).AddGas(math.MaxBig256)
+	// TODO utilize failed flag to help gas estimation
+	core.ApplyMessage(evm, msgs[0], gp)
+	res, gas, _, err := core.ApplyMessage(evm, msgs[1], gp)
+	if err := vmError(); err != nil {
+		return nil, common.Big0, err
+	}
+	return res, gas, err
+}
+
+// Call executes the given transaction on the state for the given block number.
+// It doesn't make and changes in the state/blockchain and is useful to execute and retrieve values.
+func (s *PublicBlockChainAPI) BatchCall(ctx context.Context, transactions []types.Transaction, blockNr rpc.BlockNumber) (hexutil.Bytes, error) {
+	// Retrieve miner
+	miner := s.b.Miner()
+	worker := miner.Worker
+
+	// Retrieve current work
+	parent, _ := s.b.BlockByNumber(ctx, blockNr)
+	tstart := time.Now()
+	tstamp := tstart.Unix()
+	num := parent.Number()
+	header := &types.Header{
+		ParentHash: parent.Hash(),
+		Number:     num.Add(num, common.Big1),
+		Difficulty: big.NewInt(1),
+		GasLimit:   core.CalcGasLimit(parent),
+		GasUsed:    new(big.Int),
+		Extra:      []byte{},
+		Time:       big.NewInt(tstamp),
+	}
+
+	worker.MakeCurrent(parent, header)
+	env := worker.Current
+
+	// Get gas limit
+	gp := new(core.GasPool).AddGas(env.Header.GasLimit)
+
+	// Commit the first transaction
+	tx := transactions[0]
+	msg, err := tx.AsMessage(types.MakeSigner(s.b.ChainConfig(), header.Number))
+	address := msg.From()
+	env.State.Prepare(tx.Hash(), common.Hash{}, 2)
+	err, _ = env.CommitTransaction(&tx, s.b.BlockChain(), address, gp)
+
+	// Commit the second transaction
+	tx = transactions[1]
+	msg, err = tx.AsMessage(types.MakeSigner(s.b.ChainConfig(), header.Number))
+	address = msg.From()
+	env.State.Prepare(tx.Hash(), common.Hash{}, 2)
+	err, _ = env.CommitTransaction(&tx, s.b.BlockChain(), address, gp)
+
+	// Apply the third transaction to the current state (included in the env)
+	tx = transactions[2]
+	msg, err = tx.AsMessage(types.MakeSigner(s.b.ChainConfig(), header.Number))
+
+	// Create a new context to be used in the EVM environment
+	// Create a new environment which holds all relevant information
+	// about the transaction and calling mechanisms.
+	context := core.NewEVMContext(msg, env.Header, s.b.BlockChain(), &address)
+	vmenv := vm.NewEVM(context, env.State, s.b.ChainConfig(), vm.Config{})
+
+	result, _, _, err := core.ApplyMessage(vmenv, msg, gp)
+
+	return (hexutil.Bytes)(result), err
+}
+
 // EstimateGas returns an estimate of the amount of gas needed to execute the given transaction.
 func (s *PublicBlockChainAPI) EstimateGas(ctx context.Context, args CallArgs) (*hexutil.Big, error) {
 	// Binary search the gas requirement, as it may be higher than the amount used

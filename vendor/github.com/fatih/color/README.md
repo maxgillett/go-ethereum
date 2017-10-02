@@ -1,4 +1,4 @@
-# Color [![GoDoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](http://godoc.org/github.com/fatih/color) [![Build Status](http://img.shields.io/travis/fatih/color.svg?style=flat-square)](https://travis-ci.org/fatih/color)
+# Color [![GoDoc](https://godoc.org/github.com/fatih/color?status.svg)](https://godoc.org/github.com/fatih/color) [![Build Status](https://img.shields.io/travis/fatih/color.svg?style=flat-square)](https://travis-ci.org/fatih/color)
 
 
 
@@ -8,8 +8,7 @@ has support for Windows too! The API can be used in several ways, pick one that
 suits you.
 
 
-
-![Color](http://i.imgur.com/c1JI0lA.png)
+![Color](https://i.imgur.com/c1JI0lA.png)
 
 
 ## Install
@@ -17,6 +16,9 @@ suits you.
 ```bash
 go get github.com/fatih/color
 ```
+
+Note that the `vendor` folder is here for stability. Remove the folder if you
+already have the dependencies in your GOPATH.
 
 ## Examples
 

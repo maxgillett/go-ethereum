@@ -30,8 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -122,7 +120,7 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.GasPrice
 	}
-	eth.ApiBackend.gpo = gasprice.NewOracle(eth.ApiBackend, gpoParams)
+	//eth.ApiBackend.gpo = gasprice.NewOracle(eth.ApiBackend, gpoParams)
 	return eth, nil
 }
 
@@ -155,29 +153,30 @@ func (s *LightDummyAPI) Mining() bool {
 // APIs returns the collection of RPC services the ethereum package offers.
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *LightEthereum) APIs() []rpc.API {
-	return append(ethapi.GetAPIs(s.ApiBackend), []rpc.API{
-		{
-			Namespace: "eth",
-			Version:   "1.0",
-			Service:   &LightDummyAPI{},
-			Public:    true,
-		}, {
-			Namespace: "eth",
-			Version:   "1.0",
-			Service:   downloader.NewPublicDownloaderAPI(s.protocolManager.downloader, s.eventMux),
-			Public:    true,
-		}, {
-			Namespace: "eth",
-			Version:   "1.0",
-			Service:   filters.NewPublicFilterAPI(s.ApiBackend, true),
-			Public:    true,
-		}, {
-			Namespace: "net",
-			Version:   "1.0",
-			Service:   s.netRPCService,
-			Public:    true,
-		},
-	}...)
+	return []rpc.API{}
+	//return append(ethapi.GetAPIs(s.ApiBackend), []rpc.API{
+	//{
+	//	Namespace: "eth",
+	//	Version:   "1.0",
+	//	Service:   &LightDummyAPI{},
+	//	Public:    true,
+	//}, {
+	//	Namespace: "eth",
+	//	Version:   "1.0",
+	//	Service:   downloader.NewPublicDownloaderAPI(s.protocolManager.downloader, s.eventMux),
+	//	Public:    true,
+	//}, {
+	//	Namespace: "eth",
+	//	Version:   "1.0",
+	//	Service:   filters.NewPublicFilterAPI(s.ApiBackend, true),
+	//	Public:    true,
+	//}, {
+	//	Namespace: "net",
+	//	Version:   "1.0",
+	//	Service:   s.netRPCService,
+	//	Public:    true,
+	//},
+	//}...)
 }
 
 func (s *LightEthereum) ResetWithGenesisBlock(gb *types.Block) {

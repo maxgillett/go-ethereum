@@ -3692,6 +3692,12 @@ var inputCallFormatter = function (options){
     return options;
 };
 
+var inputBatchCallFormatter = function (args){
+    return args.map(function(options){
+      inputCallFormatter(options);
+    })
+};
+
 /**
  * Formats the input of a transaction and converts all values to HEX
  *
@@ -3716,6 +3722,13 @@ var inputTransactionFormatter = function (options){
 
     return options;
 };
+
+var inputBatchTransactionFormatter = function (args){
+    return args.map(function(options){
+      inputTransactionFormatter(options);
+    })
+};
+
 
 /**
  * Formats the output of a transaction to its proper values
@@ -3897,7 +3910,9 @@ module.exports = {
     inputDefaultBlockNumberFormatter: inputDefaultBlockNumberFormatter,
     inputBlockNumberFormatter: inputBlockNumberFormatter,
     inputCallFormatter: inputCallFormatter,
+    inputBatchCallFormatter: inputBatchCallFormatter,
     inputTransactionFormatter: inputTransactionFormatter,
+    inputBatchTransactionFormatter: inputBatchTransactionFormatter,
     inputAddressFormatter: inputAddressFormatter,
     inputPostFormatter: inputPostFormatter,
     outputBigNumberFormatter: outputBigNumberFormatter,
@@ -4029,6 +4044,44 @@ SolidityFunction.prototype.call = function () {
 
     var self = this;
     this._eth.call(payload, defaultBlock, function (error, output) {
+        if (error) return callback(error, null);
+
+        var unpacked = null;
+        try {
+            unpacked = self.unpackOutput(output);
+        }
+        catch (e) {
+            error = e;
+        }
+
+        callback(error, unpacked);
+    });
+};
+
+/**
+ * Batch calls a contract function.
+ *
+ * @method call
+ * @param {...Object} Contract function arguments
+ * @param {function} If the last argument is a function, the contract function
+ *   call will be asynchronous, and the callback will be passed the
+ *   error and result.
+ * @return {String} output bytes
+ */
+SolidityFunction.prototype.batchCall = function () {
+    var args = Array.prototype.slice.call(arguments).filter(function (a) {return a !== undefined; });
+    var callback = this.extractCallback(args);
+    var defaultBlock = this.extractDefaultBlock(args);
+    var payload = this.toPayload(args);
+
+
+    if (!callback) {
+        var output = this._eth.batchCall(payload, defaultBlock);
+        return this.unpackOutput(output);
+    }
+
+    var self = this;
+    this._eth.batchCall(payload, defaultBlock, function (error, output) {
         if (error) return callback(error, null);
 
         var unpacked = null;
@@ -5310,6 +5363,13 @@ var methods = function () {
         inputFormatter: [formatters.inputCallFormatter, formatters.inputDefaultBlockNumberFormatter]
     });
 
+    var batchCall = new Method({
+        name: 'batchCall',
+        call: 'eth_batchCall',
+        params: 2,
+        inputFormatter: [formatters.inputBatchTransactionFormatter, formatters.inputDefaultBlockNumberFormatter]
+    });
+
     var estimateGas = new Method({
         name: 'estimateGas',
         call: 'eth_estimateGas',
@@ -5362,6 +5422,7 @@ var methods = function () {
         getTransactionReceipt,
         getTransactionCount,
         call,
+        batchCall,
         estimateGas,
         sendRawTransaction,
         sendTransaction,

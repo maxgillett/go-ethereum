@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -186,6 +187,14 @@ func (b *EthApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 
 func (b *EthApiBackend) ChainDb() ethdb.Database {
 	return b.eth.ChainDb()
+}
+
+func (b *EthApiBackend) BlockChain() *core.BlockChain {
+	return b.eth.BlockChain()
+}
+
+func (b *EthApiBackend) Miner() *miner.Miner {
+	return b.eth.Miner()
 }
 
 func (b *EthApiBackend) EventMux() *event.TypeMux {

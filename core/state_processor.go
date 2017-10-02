@@ -92,6 +92,7 @@ func ApplyTransaction(config *params.ChainConfig, bc *BlockChain, author *common
 	if err != nil {
 		return nil, nil, err
 	}
+
 	// Create a new context to be used in the EVM environment
 	context := NewEVMContext(msg, header, bc, author)
 	// Create a new environment which holds all relevant information
