@@ -31,3 +31,5 @@ build/_vendor/pkg
 profile.tmp
 profile.cov
 
+# IdeaIDE
+.idea
